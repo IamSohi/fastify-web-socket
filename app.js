@@ -5,9 +5,7 @@ const fastify = require('fastify')({
 const { WebsocketServer } = require('y-websocket'); // y-websocket integration
 const WebSocket = require('ws');
 const http = require('http');
-const crypto = require('node-webcrypto-ossl'); // Use WebCrypto polyfill
-
-// Polyfill WebCrypto for Node.js
+const crypto = require('webcrypto-shim');
 global.crypto = crypto;
 
 // Create an HTTP server for Fastify
