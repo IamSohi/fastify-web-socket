@@ -1,56 +1,55 @@
 // server.js
 
-const http = require("http");
-const WebSocket = require("ws");
-const Fastify = require("fastify");
-const { WebsocketServer } = require("y-websocket");  // Import correctly
-const fastify = Fastify({
-  logger: true,
+const http = require('http');
+const WebSocket = require('ws');
+const fastify = require('fastify')({
+  logger: true
 });
+const { WebsocketProvider } = require('y-websocket'); // The correct import for WebSocket provider
+const Y = require('yjs'); // yjs for document synchronization
 
 // Create a simple HTTP server
-const server = http.createServer();
+const server = http.createServer(fastify);
 
-// Create a WebSocket server using `ws` library
+// WebSocket server setup using the ws library
 const wss = new WebSocket.Server({ noServer: true });
 
-// Listen for WebSocket connection
-wss.on("connection", (ws) => {
-  console.log("Client connected to WebSocket");
+// WebSocket connection handler
+wss.on('connection', (ws) => {
+  console.log('Client connected to WebSocket');
 
-  // Handle incoming messages from the client
-  ws.on("message", (message) => {
-    console.log("Received message:", message);
+  ws.on('message', (message) => {
+    console.log('Received message:', message);
   });
 
-  // When the WebSocket is closed
-  ws.on("close", () => {
-    console.log("Client disconnected from WebSocket");
+  ws.on('close', () => {
+    console.log('Client disconnected from WebSocket');
   });
 });
 
-// Initialize the y-websocket server (no need for `new` keyword)
-const yws = WebsocketServer({
-  server,   // Pass the HTTP server to y-websocket
-  wss,      // Pass the WebSocket server to y-websocket
-  verifyClient: (info, next) => {
-    console.log("Client connected:", info.req.socket.remoteAddress);
-    next(true); // Allow all clients (you can add custom validation)
-  }
-});
-
-// WebSocket upgrade handling
-server.on("upgrade", (request, socket, head) => {
+// Handling WebSocket upgrade requests
+server.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit("connection", ws, request);
+    wss.emit('connection', ws, request);
   });
 });
 
-// Start the Fastify server
-fastify.listen(8080, (err, address) => {
+// Initialize Yjs document and WebSocket provider
+const ydoc = new Y.Doc(); // Create a new Yjs document
+
+// WebSocket provider for Yjs (this synchronizes the Yjs document across clients)
+const wsProvider = new WebsocketProvider('ws://localhost:1234', 'roomname', ydoc);
+
+// When clients are connected to WebSocket, they will synchronize their changes to `ydoc`
+wsProvider.on('status', (event) => {
+  console.log('WebSocket provider status: ', event.status);
+});
+
+// Start Fastify server
+fastify.listen(process.env.PORT || 8080, (err, address) => {
   if (err) {
     fastify.log.error(err);
     process.exit(1);
   }
-  console.log(`Server listening on ${address}`);
+  console.log(`Server listening at ${address}`);
 });
