@@ -1,20 +1,17 @@
-// server.js
-
+// Import required libraries
 const http = require('http');
-const WebSocket = require('ws');
-const fastify = require('fastify')({
-  logger: true
-});
-const { WebsocketProvider } = require('y-websocket'); // The correct import for WebSocket provider
-const Y = require('yjs'); // yjs for document synchronization
+const WebSocket = require('ws'); // Import ws to handle WebSocket
+const fastify = require('fastify')({ logger: true });
+const { WebsocketServer } = require('y-websocket'); // y-websocket for real-time collaboration
+const Y = require('yjs'); // Yjs for collaborative document synchronization
 
-// Create a simple HTTP server
+// Create a Fastify HTTP server
 const server = http.createServer(fastify);
 
-// WebSocket server setup using the ws library
+// Create a WebSocket server using ws
 const wss = new WebSocket.Server({ noServer: true });
 
-// WebSocket connection handler
+// Handle WebSocket connections and messages
 wss.on('connection', (ws) => {
   console.log('Client connected to WebSocket');
 
@@ -27,25 +24,32 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Handling WebSocket upgrade requests
+// When the HTTP server gets an upgrade request (for WebSocket), forward it to the ws WebSocket server
 server.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     wss.emit('connection', ws, request);
   });
 });
 
-// Initialize Yjs document and WebSocket provider
-const ydoc = new Y.Doc(); // Create a new Yjs document
+// Create a Yjs document
+const ydoc = new Y.Doc();
 
-// WebSocket provider for Yjs (this synchronizes the Yjs document across clients)
-const wsProvider = new WebsocketProvider('ws://localhost:1234', 'roomname', ydoc);
-
-// When clients are connected to WebSocket, they will synchronize their changes to `ydoc`
-wsProvider.on('status', (event) => {
-  console.log('WebSocket provider status: ', event.status);
+// WebSocket provider for Yjs - this allows syncing of the Yjs document across WebSocket connections
+const wsProvider = new WebsocketServer({
+  server: server,      // Pass the HTTP server to y-websocket
+  wss: wss,            // Pass the WebSocket server to y-websocket
+  verifyClient: (info, next) => {
+    console.log('Client connected:', info.req.socket.remoteAddress);
+    next(true); // Accept all clients (you can add custom validation here)
+  }
 });
 
-// Start Fastify server
+// Handle WebSocket provider status
+wsProvider.on('status', (event) => {
+  console.log('WebSocket provider status:', event.status);
+});
+
+// Start the Fastify server
 fastify.listen(process.env.PORT || 8080, (err, address) => {
   if (err) {
     fastify.log.error(err);
